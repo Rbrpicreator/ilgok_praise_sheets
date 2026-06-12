@@ -75,11 +75,18 @@ export default function SearchView({ sheets, onNavigate, onOpenViewer, onDeleteS
               className="group cursor-pointer bg-white rounded-2xl border border-zinc-100 overflow-hidden hover:shadow-xl hover:border-transparent transition-all flex flex-col"
             >
               <div className="aspect-[3/4] bg-zinc-100 relative overflow-hidden">
-                <img 
-                  src={sheet.imageUrl} 
-                  alt={sheet.title} 
-                  className="w-full h-full object-cover grayscale opacity-90 group-hover:grayscale-0 group-hover:scale-105 group-hover:opacity-100 transition-all duration-500"
-                />
+                {sheet.imageUrl.endsWith('.pdf') ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-200 font-bold text-zinc-400 group-hover:bg-zinc-300 transition-colors">
+                    <span className="text-3xl tracking-widest block mb-2">PDF</span>
+                    <span className="text-xs font-medium tracking-tight opacity-50 block px-4 text-center">악보 뷰어에서 확인</span>
+                  </div>
+                ) : (
+                  <img 
+                    src={sheet.imageUrl} 
+                    alt={sheet.title} 
+                    className="w-full h-full object-cover grayscale opacity-90 group-hover:grayscale-0 group-hover:scale-105 group-hover:opacity-100 transition-all duration-500"
+                  />
+                )}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors z-10 flex items-center justify-center">
                   <div className="w-12 h-12 rounded-full bg-white/90 shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transform scale-75 group-hover:scale-100 transition-all duration-300">
                     <Maximize2 size={24} className="text-zinc-900" />

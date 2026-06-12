@@ -3,7 +3,7 @@ import { Upload, X, Check, Image as ImageIcon, Loader2, Sparkles, Trash2 } from 
 import { Sheet } from '../types';
 
 interface UploadViewProps {
-  onAddSheets: (sheets: Sheet[]) => void;
+  onUploadComplete: () => void;
   onNavigate: () => void;
 }
 
@@ -17,7 +17,7 @@ interface UploadItem {
   analyzing: boolean;
 }
 
-export default function UploadView({ onAddSheets, onNavigate }: UploadViewProps) {
+export default function UploadView({ onUploadComplete, onNavigate }: UploadViewProps) {
   const [items, setItems] = useState<UploadItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -37,7 +37,7 @@ export default function UploadView({ onAddSheets, onNavigate }: UploadViewProps)
     const files = e.dataTransfer.files;
     if (files) {
       const fileArray = Array.from(files) as File[];
-      processFiles(fileArray.filter(f => f.type.startsWith('image/')));
+      processFiles(fileArray.filter(f => f.type.startsWith('image/') || f.type === 'application/pdf'));
     }
   };
 
@@ -68,6 +68,11 @@ export default function UploadView({ onAddSheets, onNavigate }: UploadViewProps)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: base64 })
       });
+      
+      if (!response.ok) {
+        throw new Error(`AI 분석 오류: ${response.status}`);
+      }
+
       const data = await response.json();
       
       setItems(prev => prev.map(item => {
@@ -85,7 +90,7 @@ export default function UploadView({ onAddSheets, onNavigate }: UploadViewProps)
       console.error("Failed to analyze sheet", error);
       setItems(prev => prev.map(item => {
         if (item.id === id) {
-          return { ...item, analyzing: false };
+          return { ...item, analyzing: false, title: item.title || 'AI 분석 실패 (직접 입력)' };
         }
         return item;
       }));
@@ -102,22 +107,33 @@ export default function UploadView({ onAddSheets, onNavigate }: UploadViewProps)
     setItems(prev => prev.filter(item => item.id !== id));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0 || items.some(i => !i.title)) return;
     
-    const newSheets: Sheet[] = items.map(item => ({
-      id: Date.now().toString() + '_' + item.id,
-      title: item.title,
-      chord: item.chord,
-      imageUrl: item.imagePreview,
-      createdAt: Date.now(),
-    }));
-    
-    onAddSheets(newSheets);
-    setItems([]);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    onNavigate();
+    try {
+      const response = await fetch('/api/upload-sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheets: items.map(i => ({ 
+          title: i.title, 
+          chord: i.chord, 
+          base64: i.imagePreview 
+        }))})
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || '업로드 중 오류가 발생했습니다.');
+      }
+      
+      setItems([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      onUploadComplete();
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message || '업로드 실패. 다시 시도해주세요.');
+    }
   };
 
   return (
@@ -144,7 +160,7 @@ export default function UploadView({ onAddSheets, onNavigate }: UploadViewProps)
         >
           <input 
             type="file" 
-            accept="image/*" 
+            accept="image/*,application/pdf" 
             className="hidden" 
             multiple
             ref={fileInputRef} 
@@ -154,8 +170,8 @@ export default function UploadView({ onAddSheets, onNavigate }: UploadViewProps)
             <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4 text-zinc-500">
               <Upload size={32} />
             </div>
-            <p className="font-semibold text-lg mb-1">이미지를 클릭하거나 드래그하여 여러 장의 악보를 업로드하세요</p>
-            <p className="text-zinc-500 text-sm">JPG, PNG, GIF 포맷 지원 (AI가 제목과 코드를 자동 분석합니다)</p>
+            <p className="font-semibold text-lg mb-1">이미지나 PDF를 클릭하거나 드래그하여 여러 장의 악보를 업로드하세요</p>
+            <p className="text-zinc-500 text-sm">JPG, PNG, GIF, PDF 포맷 지원 (AI가 제목과 코드를 자동 분석합니다)</p>
           </div>
         </div>
 
@@ -167,7 +183,11 @@ export default function UploadView({ onAddSheets, onNavigate }: UploadViewProps)
                 <div key={item.id} className="flex flex-col sm:flex-row gap-6 p-6 bg-white rounded-2xl border border-zinc-200">
                    {/* Preview Image */}
                    <div className="w-full sm:w-32 h-32 flex-shrink-0 bg-zinc-100 rounded-xl overflow-hidden relative border border-zinc-200">
-                     <img src={item.imagePreview} alt="preview" className="w-full h-full object-cover" />
+                     {item.imagePreview.includes('application/pdf') ? (
+                       <div className="w-full h-full flex items-center justify-center bg-zinc-200 font-bold text-zinc-500 text-xl tracking-widest">PDF</div>
+                     ) : (
+                       <img src={item.imagePreview} alt="preview" className="w-full h-full object-cover" />
+                     )}
                      {item.analyzing && (
                        <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center z-10 transition-all">
                           <Loader2 size={24} className="animate-spin text-zinc-900 mb-2" />

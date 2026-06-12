@@ -6,7 +6,7 @@ import UploadView from './components/UploadView';
 import CreateSetlistView from './components/CreateSetlistView';
 import ViewerModal from './components/ViewerModal';
 import { ViewState, Sheet, Setlist } from './types';
-import { getStoredSheets, getStoredSetlists, saveSheets, saveSetlists } from './store';
+import { getStoredSetlists, saveSetlists } from './store';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewState>('landing');
@@ -17,8 +17,20 @@ export default function App() {
   const [viewerInitialIndex, setViewerInitialIndex] = useState<number>(0);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
 
+  const fetchSheets = async () => {
+    try {
+      const res = await fetch('/api/sheets');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setSheets(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
-    setSheets(getStoredSheets());
+    fetchSheets();
     setSetlists(getStoredSetlists());
   }, []);
 
@@ -27,26 +39,33 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  const handleAddSheets = (newSheets: Sheet[]) => {
-    const updatedSheets = [...newSheets, ...sheets];
-    setSheets(updatedSheets);
-    saveSheets(updatedSheets);
+  const handleUploadComplete = () => {
+    fetchSheets();
+    handleNavigate('landing');
   };
 
   const handleDeleteSheet = (id: string) => {
     setConfirmDialog({
       message: '정말로 이 악보를 삭제하시겠습니까?',
-      onConfirm: () => {
-        const updatedSheets = sheets.filter(s => s.id !== id);
-        setSheets(updatedSheets);
-        saveSheets(updatedSheets);
-        
-        const updatedSetlists = setlists.map(sl => ({
-           ...sl,
-           sheetIds: sl.sheetIds.filter(sid => sid !== id)
-        }));
-        setSetlists(updatedSetlists);
-        saveSetlists(updatedSetlists);
+      onConfirm: async () => {
+        try {
+          await fetch('/api/sheets', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pathname: id })
+          });
+          
+          fetchSheets();
+          
+          const updatedSetlists = setlists.map(sl => ({
+             ...sl,
+             sheetIds: sl.sheetIds.filter(sid => sid !== id)
+          }));
+          setSetlists(updatedSetlists);
+          saveSetlists(updatedSetlists);
+        } catch (e) {
+          console.error(e);
+        }
       }
     });
   };
@@ -165,7 +184,7 @@ export default function App() {
         
         {currentView === 'upload' && (
           <UploadView 
-            onAddSheets={handleAddSheets}
+            onUploadComplete={handleUploadComplete}
             onNavigate={() => handleNavigate('landing')}
           />
         )}

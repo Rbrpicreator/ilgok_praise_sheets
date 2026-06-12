@@ -100,15 +100,25 @@ export default function ViewerModal({ sheets, initialIndex, onClose }: ViewerMod
         className="w-full h-full p-4 md:p-12 overflow-auto flex items-center justify-center relative touch-pan-y"
         onClick={onClose}
       >
-        <img 
-          src={sheet.imageUrl} 
-          alt={sheet.title} 
-          className="max-w-full max-h-full transition-transform duration-200 ease-out shadow-2xl bg-white"
-          style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
-          onClick={(e) => {
-             e.stopPropagation();
-          }}
-        />
+        {sheet.imageUrl.endsWith('.pdf') ? (
+          <iframe 
+            src={sheet.imageUrl} 
+            title={sheet.title} 
+            className="w-full h-full border-0 bg-white shadow-2xl rounded-xl max-w-4xl max-h-[90vh]"
+            style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <img 
+            src={sheet.imageUrl} 
+            alt={sheet.title} 
+            className="max-w-full max-h-full transition-transform duration-200 ease-out shadow-2xl bg-white"
+            style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
+            onClick={(e) => {
+               e.stopPropagation();
+            }}
+          />
+        )}
       </div>
       
     </div>

@@ -161,11 +161,17 @@ export default function SetlistView({ setlists, sheets, onNavigate, onOpenViewer
                                   className="w-[280px] bg-white rounded-2xl border border-zinc-200 overflow-hidden cursor-pointer group hover:shadow-xl hover:border-zinc-400 transition-all"
                                 >
                                   <div className="aspect-[3/4] relative overflow-hidden bg-zinc-100">
-                                    <img 
-                                      src={sheet.imageUrl} 
-                                      alt={sheet.title} 
-                                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-                                    />
+                                    {sheet.imageUrl.endsWith('.pdf') ? (
+                                      <div className="w-full h-full flex items-center justify-center bg-zinc-200 text-zinc-400 font-bold group-hover:bg-zinc-300 transition-colors">
+                                        <span className="text-2xl tracking-widest">PDF</span>
+                                      </div>
+                                    ) : (
+                                      <img 
+                                        src={sheet.imageUrl} 
+                                        alt={sheet.title} 
+                                        className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+                                      />
+                                    )}
                                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors z-10 flex items-center justify-center">
                                         <div className="w-12 h-12 rounded-full bg-white/90 shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transform scale-75 group-hover:scale-100 transition-all duration-300">
                                           <Maximize2 size={24} className="text-zinc-900" />
