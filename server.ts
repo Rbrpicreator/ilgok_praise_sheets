@@ -52,7 +52,7 @@ async function startServer() {
               }
             },
             {
-              text: "Analyze this sheet music (which may be an image or a PDF document). Extract the exact title (악보 제목) and the main key/chord (코드) from the sheet music. The key/chord must be strictly one of these valid musical keys: C, C#, Db, D, D#, Eb, E, F, F#, Gb, G, G#, Ab, A, A#, Bb, B. Provide your best guess if it's not explicitly labeled. For the title, extract just the actual title of the song (e.g. '은혜', '마커스워십 - 그 이름'), dropping 'Sheet Music' or 'Key of'."
+              text: "Analyze this sheet music (which may be an image or a PDF document). Extract the exact title (악보 제목) and the main key/chord (코드) from the sheet music. The key/chord must be strictly one of these valid musical keys: C, C#, Db, D, D#, Eb, E, F, F#, Gb, G, G#, Ab, A, A#, Bb, B. Provide your best guess if it's not explicitly labeled. For the title, extract just the actual title of the song (e.g. '은혜', '마커스워십 - 그 이름') in Korean if possible, dropping 'Sheet Music' or 'Key of'. IF you cannot find a title or recognize it, you MUST return '제목 없음' for the title. If you cannot find a chord, return 'C' for the chord."
             }
           ]
         },

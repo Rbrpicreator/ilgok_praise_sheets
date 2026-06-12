@@ -12,32 +12,51 @@ export async function getDriveHeaders() {
 }
 
 // 1. Find or create the app folder in Google Drive
-export async function getOrCreateFolder(): Promise<string> {
+export async function getOrCreateFolder(): Promise<string | null> {
   const headers = await getDriveHeaders();
   
-  // Search for the folder
-  const query = encodeURIComponent(`name='${FOLDER_NAME}' and mimeType='${FOLDER_MIME_TYPE}' and trashed=false`);
-  const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)`, { headers });
-  const searchData = await searchRes.json();
-  
-  if (searchData.files && searchData.files.length > 0) {
-    return searchData.files[0].id;
+  try {
+    // Search for the folder
+    const query = encodeURIComponent(`name='${FOLDER_NAME}' and mimeType='${FOLDER_MIME_TYPE}' and trashed=false`);
+    const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)`, { headers });
+    
+    if (searchRes.ok) {
+      const searchData = await searchRes.json();
+      if (searchData.files && searchData.files.length > 0) {
+        return searchData.files[0].id;
+      }
+    } else {
+      console.warn("Folder search returned an error, status:", searchRes.status, await searchRes.text());
+    }
+  } catch (error) {
+    console.warn("Folder search failed to fetch:", error);
   }
   
-  // Create the folder
-  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
-    method: 'POST',
-    headers: {
-      ...headers,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      name: FOLDER_NAME,
-      mimeType: FOLDER_MIME_TYPE
-    })
-  });
-  const createData = await createRes.json();
-  return createData.id;
+  // Try to create the folder if not found or search failed
+  try {
+    const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: FOLDER_NAME,
+        mimeType: FOLDER_MIME_TYPE
+      })
+    });
+    
+    if (createRes.ok) {
+      const createData = await createRes.json();
+      return createData.id;
+    } else {
+      console.warn("Folder creation failed:", createRes.status, await createRes.text());
+    }
+  } catch (error) {
+    console.warn("Folder creation failed to fetch:", error);
+  }
+  
+  return null; // Return null if creating/searching fails so the app won't crash
 }
 
 export async function uploadToDrive(filename: string, mimeType: string, base64Data: string, metadata: any) {
@@ -49,15 +68,19 @@ export async function uploadToDrive(filename: string, mimeType: string, base64Da
   const delimiter = "\r\n--" + boundary + "\r\n";
   const close_delim = "\r\n--" + boundary + "--";
 
-  const fileMetadata = {
+  const fileMetadata: any = {
     name: filename,
-    parents: [folderId],
     appProperties: {
       title: metadata.title,
       chord: metadata.chord,
       type: 'sheet-music'
     }
   };
+  
+  // Conditionally add parents folder if folderId was successfully obtained
+  if (folderId) {
+    fileMetadata.parents = [folderId];
+  }
 
   const multipartRequestBody =
     delimiter +
@@ -89,15 +112,19 @@ export async function getSheetsFromDrive() {
   const folderId = await getOrCreateFolder();
   const headers = await getDriveHeaders();
   
-  const query = encodeURIComponent(`'${folderId}' in parents and trashed=false and appProperties has { key='type' and value='sheet-music' }`);
-  // webContentLink allows direct download, but for images reading via webContentLink directly in img tag might prompt download or CORS.
-  // Instead we can use google drive file ID to fetch the file, or use thumbnailLink for preview, or webContentLink?
+  let queryStr = `trashed=false and appProperties has { key='type' and value='sheet-music' }`;
+  if (folderId) {
+    queryStr += ` and '${folderId}' in parents`;
+  }
+  
+  const query = encodeURIComponent(queryStr);
+  
   const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,appProperties,createdTime,webContentLink,thumbnailLink,mimeType)`, {
     headers
   });
   
   if (!res.ok) {
-    throw new Error('Failed to fetch from Google Drive');
+    throw new Error('Failed to fetch from Google Drive: ' + await res.text());
   }
   
   const data = await res.json();
