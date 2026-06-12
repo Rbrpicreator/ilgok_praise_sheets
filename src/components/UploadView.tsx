@@ -44,26 +44,31 @@ export default function UploadView({ onUploadComplete, onNavigate }: UploadViewP
   };
 
   const processFiles = async (files: File[]) => {
+    const newItems: UploadItem[] = [];
+    
     for (const file of files) {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result as string;
-        // strip data URI scheme if needed, wait Drive multipart needs pure base64
-        const base64Data = base64.split(',')[1];
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+      
+      newItems.push({
+        id: Math.random().toString(36).substring(7),
+        imagePreview: base64,
+        mimeType: file.type,
+        title: '',
+        chord: 'C',
+        analyzing: true
+      });
+    }
 
-        const newItem: UploadItem = {
-          id: Math.random().toString(36).substring(7),
-          imagePreview: base64,
-          mimeType: file.type,
-          title: '',
-          chord: 'C',
-          analyzing: true
-        };
-        
-        setItems(prev => [...prev, newItem]);
-        await analyzeSheet(newItem.id, base64);
-      };
-      reader.readAsDataURL(file);
+    setItems(prev => [...prev, ...newItems]);
+
+    for (const item of newItems) {
+      await analyzeSheet(item.id, item.imagePreview);
+      // Add a small delay between requests to avoid rate limits
+      await new Promise(r => setTimeout(r, 1000));
     }
   };
 
