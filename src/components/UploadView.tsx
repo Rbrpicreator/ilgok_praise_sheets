@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, Check, Image as ImageIcon, Loader2, Sparkles, Trash2 } from 'lucide-react';
-import { Sheet } from '../types';
+import { deleteFromDrive, uploadToDrive } from '../drive';
 
 interface UploadViewProps {
   onUploadComplete: () => void;
@@ -12,6 +12,7 @@ const CHORDS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#
 interface UploadItem {
   id: string;
   imagePreview: string; // base64
+  mimeType: string;
   title: string;
   chord: string;
   analyzing: boolean;
@@ -19,6 +20,7 @@ interface UploadItem {
 
 export default function UploadView({ onUploadComplete, onNavigate }: UploadViewProps) {
   const [items, setItems] = useState<UploadItem[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,9 +48,13 @@ export default function UploadView({ onUploadComplete, onNavigate }: UploadViewP
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64 = reader.result as string;
+        // strip data URI scheme if needed, wait Drive multipart needs pure base64
+        const base64Data = base64.split(',')[1];
+
         const newItem: UploadItem = {
           id: Math.random().toString(36).substring(7),
           imagePreview: base64,
+          mimeType: file.type,
           title: '',
           chord: 'C',
           analyzing: true
@@ -111,20 +117,17 @@ export default function UploadView({ onUploadComplete, onNavigate }: UploadViewP
     e.preventDefault();
     if (items.length === 0 || items.some(i => !i.title)) return;
     
+    setIsUploading(true);
     try {
-      const response = await fetch('/api/upload-sheets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sheets: items.map(i => ({ 
-          title: i.title, 
-          chord: i.chord, 
-          base64: i.imagePreview 
-        }))})
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || '업로드 중 오류가 발생했습니다.');
+      for (const item of items) {
+        const ext = item.mimeType === 'application/pdf' ? 'pdf' : item.mimeType.split('/')[1] || 'png';
+        const filename = `${item.title}_${item.chord}.${ext}`;
+        const base64Data = item.imagePreview.split(',')[1];
+        
+        await uploadToDrive(filename, item.mimeType, base64Data, {
+          title: item.title,
+          chord: item.chord
+        });
       }
       
       setItems([]);
@@ -133,6 +136,8 @@ export default function UploadView({ onUploadComplete, onNavigate }: UploadViewP
     } catch (e: any) {
       console.error(e);
       alert(e.message || '업로드 실패. 다시 시도해주세요.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -171,7 +176,7 @@ export default function UploadView({ onUploadComplete, onNavigate }: UploadViewP
               <Upload size={32} />
             </div>
             <p className="font-semibold text-lg mb-1">이미지나 PDF를 클릭하거나 드래그하여 여러 장의 악보를 업로드하세요</p>
-            <p className="text-zinc-500 text-sm">JPG, PNG, GIF, PDF 포맷 지원 (AI가 제목과 코드를 자동 분석합니다)</p>
+            <p className="text-zinc-500 text-sm">구글 드라이브에 안전하게 보관됩니다.</p>
           </div>
         </div>
 
@@ -244,13 +249,15 @@ export default function UploadView({ onUploadComplete, onNavigate }: UploadViewP
             <div className="sticky bottom-6 mt-8">
                <button 
                 type="submit" 
-                disabled={items.length === 0 || items.some(i => i.analyzing || !i.title)}
+                disabled={items.length === 0 || items.some(i => i.analyzing || !i.title) || isUploading}
                 className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-zinc-800 transition-colors shadow-2xl disabled:bg-zinc-300 disabled:cursor-not-allowed group"
               >
                  {items.some(i => i.analyzing) ? (
                    <><Loader2 size={20} className="animate-spin" /> 자동 분석 완료 대기중...</>
+                 ) : isUploading ? (
+                   <><Loader2 size={20} className="animate-spin" /> 구글 드라이브 업로드 중...</>
                  ) : (
-                   <><Check size={20} /> {items.length}개의 악보 모두 저장하기</>
+                   <><Check size={20} /> {items.length}개의 악보 구글 드라이브에 저장하기</>
                  )}
               </button>
             </div>
